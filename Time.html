@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smart Alarm Clock & Weather Dashboard</title>
+
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Load Tone.js for audio generation -->
+    <script src="https://cdn.jsdelivr.net/npm/tone@14.7.58/build/Tone.min.js"></script>
+    <style>
+      /* Deep Navy Blue & Cyber Gold Theme */
+      :root {
+        --bg-dark: #141e30; /* Deep Navy Blue */
+        --glass-color: rgba(255, 255, 255, 0.05);
+        --accent-color: #ffd700; /* Cyber Gold/Yellow */
+        --text-color: #f9fafb;
+      }
+      body {
+        font-family: "Inter", sans-serif;
+        /* UPDATED: Blue Gradient Background */
+        background: linear-gradient(135deg, #002d62, #007acc);
+        color: var(--text-color);
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      .glass-container {
+        background-color: var(--glass-color);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.5);
+      }
+      .clock-display {
+        font-family: "Digital-7", monospace;
+        font-size: 4rem;
+        text-shadow: 0 0 8px var(--accent-color);
+        color: var(--accent-color);
+      }
+      .input-style {
+        background-color: rgba(255, 255, 255, 0.1);
+        border: 1px solid var(--accent-color);
+        color: var(--text-color);
+      }
+      .input-style:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.3); /* Yellow focus */
+      }
+
+      /* Alarm Ringing Animation (using Yellow pulse) */
+      @keyframes ring-pulse {
+        0% {
+          box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.4);
+        } /* Yellow pulse start */
+        70% {
+          box-shadow: 0 0 0 20px rgba(255, 215, 0, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(255, 215, 0, 0);
+        }
+      }
+      .alarm-ringing {
+        animation: ring-pulse 1s infinite;
+        background-color: rgba(220, 38, 38, 0.8) !important;
+        color: white;
+      }
+    </style>
+  </head>
+  <body class="p-4">
+    <div
+      id="appContainer"
+      class="glass-container p-6 md:p-10 rounded-3xl max-w-2xl w-full"
+    >
+      <h1
+        class="text-3xl font-extrabold text-center mb-6 text-accent-color"
+        style="color: var(--accent-color)"
+      >
+        Time | Weather Protocol
+      </h1>
+
+      <div class="flex flex-col lg:flex-row gap-6">
+        <div class="flex-grow">
+          <div
+            id="currentTime"
+            class="clock-display text-center mb-4 leading-none"
+          >
+            --:--:-- <span class="text-xl opacity-75">--</span>
+          </div>
+          <div id="currentDate" class="text-center text-sm mb-6 opacity-70">
+            --
+          </div>
+
+          <div
+            class="p-4 rounded-xl shadow-inner mb-4"
+            style="background-color: rgba(255, 255, 255, 0.05)"
+          >
+            <h2
+              class="font-bold text-lg mb-3 flex justify-between items-center text-white"
+            >
+              <span class="flex items-center">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="mr-2"
+                  style="color: var(--accent-color)"
+                >
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                </svg>
+                Set Alarm
+              </span>
+              <span
+                id="alarmStatus"
+                class="text-xs font-semibold px-2 py-1 rounded-full bg-gray-600 text-white"
+                >Inactive</span
+              >
+            </h2>
+            <div class="flex justify-center items-center space-x-2 mb-4">
+              <input
+                type="number"
+                id="alarmHour"
+                min="1"
+                max="12"
+                placeholder="HH"
+                class="input-style w-16 h-10 rounded-lg p-2 text-center"
+              />
+              <span class="text-2xl font-bold">:</span>
+              <input
+                type="number"
+                id="alarmMinute"
+                min="0"
+                max="59"
+                placeholder="MM"
+                class="input-style w-16 h-10 rounded-lg p-2 text-center"
+              />
+              <select
+                id="alarmAmPm"
+                class="input-style w-20 h-10 rounded-lg p-2"
+              >
+                <option value="AM">AM</option>
+                <option value="PM">PM</option>
+              </select>
+            </div>
+
+            <div class="flex justify-between space-x-3">
+              <button
+                id="setAlarmButton"
+                class="w-1/2 font-semibold py-2 rounded-xl transition duration-200 shadow-lg text-black"
+                style="
+                  background-color: var(--accent-color);
+                  color: var(--bg-dark);
+                "
+              >
+                Set
+              </button>
+              <button
+                id="clearAlarmButton"
+                class="w-1/2 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 rounded-xl transition duration-200 shadow-lg"
+                disabled
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <div
+            id="ringingControls"
+            class="hidden flex justify-between space-x-3 mt-4"
+          >
+            <button
+              id="snoozeAlarmButton"
+              class="w-1/2 bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 rounded-xl transition duration-200 shadow-xl"
+            >
+              After (5 minutes)
+            </button>
+            <button
+              id="dismissAlarmButton"
+              class="w-1/2 bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl transition duration-200 shadow-xl"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+
+        <div
+          class="lg:w-1/3 p-4 rounded-xl shadow-inner"
+          style="background-color: rgba(255, 255, 255, 0.05)"
+        >
+          <h2
+            class="font-bold text-lg mb-3 flex items-center"
+            style="color: var(--accent-color)"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="mr-2"
+            >
+              <path
+                d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41M18 12a6 6 0 1 1-12 0 6 6 0 0 1 12 0z"
+              />
+            </svg>
+            Weather
+          </h2>
+
+          <div id="weatherDisplay" class="space-y-3">
+            <div
+              class="text-4xl font-extrabold text-center"
+              style="color: var(--accent-color)"
+            >
+              30°C
+              <span class="text-base font-normal block text-gray-400"
+                >Partly Cloudy</span
+              >
+            </div>
+            <div
+              class="text-sm border-t border-gray-600 pt-3 space-y-1 text-gray-200"
+            >
+              <p>
+                Location: <span class="font-semibold">Tamil nadu , India</span>
+              </p>
+              <p>Humidity: <span class="font-semibold">78%</span></p>
+              <p>Wind: <span class="font-semibold">8 km/h E</span></p>
+            </div>
+          </div>
+          <div class="mt-4 text-xs text-center text-gray-400">
+            <p>Forecast data is a placeholder.</p>
+          </div>
+        </div>
+      </div>
+
+      <div
+        id="statusMessage"
+        class="h-8 flex items-center justify-center text-center text-sm font-medium text-gray-400 mt-6"
+      >
+        System ready.
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const [cT, cD, sM, sB, cB, dB, zB, rC, aH, aM, aP, aS, aC] = [
+        "currentTime",
+        "currentDate",
+        "statusMessage",
+        "setAlarmButton",
+        "clearAlarmButton",
+        "dismissAlarmButton",
+        "snoozeAlarmButton",
+        "ringingControls",
+        "alarmHour",
+        "alarmMinute",
+        "alarmAmPm",
+        "alarmStatus",
+        "appContainer",
+      ].map($);
+      let aTime = null,
+        isSet = false,
+        isRing = false,
+        iId,
+        sId = null;
+      const synth = new Tone.Synth({
+        oscillator: { type: "sine" },
+        envelope: { attack: 0.1, decay: 0.5, sustain: 0.5, release: 2 },
+      }).toDestination();
+      const pad = (v) => (v < 10 ? `0${v}` : `${v}`);
+      const msg = (m, e = false) => {
+        sM.textContent = m;
+        sM.className =
+          "h-8 flex items-center justify-center text-center text-sm font-medium mt-6 " +
+          (e ? "text-red-400" : "text-gray-400");
+      };
+      const stopR = () => {
+        if (isRing) {
+          clearInterval(iId);
+          isRing = false;
+          aC.classList.remove("alarm-ringing");
+          rC.classList.add("hidden");
+        }
+      };
+      const play = () => {
+        sId && clearTimeout(sId);
+        sId = null;
+        if (!isRing) {
+          Tone.context.state !== "running" && Tone.start().catch(console.error);
+          isRing = true;
+          aC.classList.add("alarm-ringing");
+          aS.textContent = "RINGING";
+          aS.classList.remove("bg-gray-600", "bg-accent-color", "bg-blue-500");
+          aS.classList.add("bg-red-500", "text-white");
+          rC.classList.remove("hidden");
+          msg("Wake-Up Alert! Protocol initiated.", true);
+          let nIdx = 0;
+          const notes = ["C4", "E4", "G4"];
+          iId = setInterval(
+            () =>
+              isRing &&
+              synth.triggerAttackRelease(
+                notes[nIdx++ % notes.length],
+                "4n",
+                Tone.now()
+              ),
+            1500
+          );
+        }
+      };
+      const clearA = () => {
+        aTime = null;
+        isSet = false;
+        sId && clearTimeout(sId);
+        sId = null;
+        sB.disabled = false;
+        cB.disabled = true;
+        [aH, aM, aP].forEach((el) => (el.disabled = false));
+        aS.textContent = "Inactive";
+        aS.style.backgroundColor = "";
+        aS.style.color = "";
+        aS.classList.remove("bg-red-500", "bg-blue-500");
+        aS.classList.add("bg-gray-600", "text-white");
+        msg("Alarm cleared. System ready.");
+      };
+      const snooze = () => {
+        stopR();
+        msg(`Alarm snoozing... will ring again in 5 minutes.`);
+        aS.textContent = "SNOOZING";
+        aS.classList.remove("bg-red-500", "bg-gray-600");
+        aS.classList.add("bg-blue-500", "text-white");
+        sId = setTimeout(() => {
+          aS.classList.remove("bg-blue-500");
+          play();
+        }, 300000); // 5 min
+      };
+      const dismiss = () => {
+        stopR();
+        sId && clearTimeout(sId);
+        clearA();
+        msg("Alarm dismissed. Have a wonderful day.");
+      };
+      const set = () => {
+        const [h, m, ap] = [parseInt(aH.value), parseInt(aM.value), aP.value];
+        if (isNaN(h) || isNaN(m) || h < 1 || h > 12 || m < 0 || m > 59) {
+          msg("Input Error: Verify HH (1-12) and MM (0-59).", true);
+          return;
+        }
+        sId && clearTimeout(sId);
+        sId = null;
+        aTime = `${pad(h)}:${pad(m)} ${ap}`;
+        isSet = true;
+        sB.disabled = true;
+        cB.disabled = false;
+        [aH, aM, aP].forEach((el) => (el.disabled = true));
+        aS.textContent = aTime;
+        aS.classList.remove("bg-gray-600", "bg-blue-500", "bg-red-500");
+        aS.style.backgroundColor = "var(--accent-color)";
+        aS.style.color = "var(--bg-dark)";
+        msg(`Alarm set for ${aTime}`);
+      };
+      const check = (cH, cM, cAP) =>
+        isSet && `${cH}:${cM} ${cAP}` === aTime && play();
+      function updateClock() {
+        const now = new Date();
+        let h = now.getHours();
+        const m = now.getMinutes(),
+          s = now.getSeconds();
+        const ap = h >= 12 ? "PM" : "AM";
+        h = h % 12 || 12;
+        const [fH, fM, fS] = [pad(h), pad(m), pad(s)];
+        cT.innerHTML = `${fH}:${fM}:${fS} <span class="text-xl opacity-75">${ap}</span>`;
+        cD.textContent = now.toLocaleDateString(undefined, {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+        !isRing && sId === null && check(fH, fM, ap);
+      }
+      window.onload = function () {
+        updateClock();
+        setInterval(updateClock, 1000);
+        const now = new Date();
+        const future = new Date(now.getTime() + 60000);
+        let h = future.getHours();
+        const m = future.getMinutes();
+        const ap = h >= 12 ? "PM" : "AM";
+        h = h % 12 || 12;
+        aH.value = h;
+        aM.value = pad(m);
+        aP.value = ap;
+        sB.addEventListener("click", set);
+        cB.addEventListener("click", clearA);
+        dB.addEventListener("click", dismiss);
+        zB.addEventListener("click", snooze);
+        msg("System ready.");
+      };
+    </script>
+  </body>
+</html>
