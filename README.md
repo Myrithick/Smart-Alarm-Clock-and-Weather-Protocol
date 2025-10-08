@@ -1,2 +1,2 @@
-# Smart-Alarm-Clock-and-Weather-Protocol
+# Smart Alarm Clock and Weather Protocol
 used HTML 
